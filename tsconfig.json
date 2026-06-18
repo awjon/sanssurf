@@ -8,7 +8,8 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "sourceMap": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true
   },
   "include": ["src", "vite.config.ts"]
 }

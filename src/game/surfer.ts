@@ -1,7 +1,7 @@
 export type Stance = 'stand' | 'crouch';
 
 export interface SurferState {
-  lanePosition: number; // -1 (trough) to +1 (lip)
+  lanePosition: number; // -1 (left edge) to +1 (right edge)
   speed: number;        // virtual m/s
   momentum: number;     // accumulated pump energy
   stance: Stance;
@@ -28,18 +28,12 @@ export function createSurfer(): SurferState {
   };
 }
 
-// Constants
-export const SURFER_SCREEN_X_RATIO = 0.285; // fraction of screen width
-export const LANE_TOP    = 0.16;             // UV Y where lane = +1 (top/lip)
-export const LANE_BOTTOM = 0.84;             // UV Y where lane = -1 (trough)
+// Screen-space constants for perspective view
+export const LANE_LEFT_RATIO  = 0.15; // screen X fraction when lanePosition = -1
+export const LANE_RIGHT_RATIO = 0.85; // screen X fraction when lanePosition = +1
+export const SURFER_Y_RATIO   = 0.82; // fixed screen Y fraction
 
-/** Map lane position to UV Y (0=top, 1=bottom) */
-export function laneToUVY(lane: number): number {
-  // lane +1 → UV Y = LANE_TOP,  lane -1 → UV Y = LANE_BOTTOM
-  return LANE_BOTTOM + (lane - (-1)) / 2 * (LANE_TOP - LANE_BOTTOM);
-}
-
-/** Map UV Y to screen pixel Y */
-export function uvYToScreen(uvY: number, height: number): number {
-  return uvY * height;
+/** Map lane position [-1..+1] to screen pixel X */
+export function laneToScreenX(lane: number, W: number): number {
+  return W * (LANE_LEFT_RATIO + (lane + 1) / 2 * (LANE_RIGHT_RATIO - LANE_LEFT_RATIO));
 }

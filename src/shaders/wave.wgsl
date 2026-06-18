@@ -1,82 +1,98 @@
-fn waveRightEdge(v: f32, t: f32) -> f32 {
-  // v = 0 top, 1 bottom
-  let base  = 0.355;
-  let w1    = 0.032 * sin(v * 3.8 + t * 1.3);
-  let w2    = 0.014 * sin(v * 8.7 + t * 2.2 + 1.1);
-  let w3    = 0.006 * sin(v * 18.0 + t * 3.5 + 0.4);
-  // curl: top of wave overhangs to the right
-  let curl  = 0.042 * smoothstep(0.18, 0.0, v) * (0.6 + 0.4 * sin(t * 0.7));
-  return base + w1 + w2 + w3 + curl;
+fn waveBottomEdge(x: f32, t: f32) -> f32 {
+  return 0.60
+    + 0.055 * sin(x * 3.8 + t * 1.2)
+    + 0.022 * sin(x * 9.1 + t * 2.1 + 1.3)
+    + 0.008 * sin(x * 18.5 + t * 3.7)
+    + globals.waveXOffset;
 }
 
 @fragment
 fn fs_wave(in: VertexOutput) -> @location(0) vec4<f32> {
-  let uv = in.uv; // x:0=left 1=right, y:0=top 1=bottom
-  let t = globals.time;
+  let uv    = in.uv;
+  let t     = globals.time;
+  let scroll = globals.cameraScroll;
 
-  let rightEdge = waveRightEdge(uv.y, t) + globals.waveXOffset;
+  let bottomEdge = waveBottomEdge(uv.x, t);
+  let FRINGE = 0.045;
 
-  if (uv.x > rightEdge) {
+  // Nothing below fringe
+  if (uv.y > bottomEdge + FRINGE) {
     return vec4<f32>(0.0);
   }
 
-  // Distance from face (right edge)
-  let faceDist = rightEdge - uv.x;
-  let faceProx = clamp(faceDist / 0.08, 0.0, 1.0); // 0=face 1=deep interior
-
-  let v = uv.y;
-
-  // ---- Face color (glass water) ----
-  let faceTop  = vec3<f32>(0.10, 0.62, 0.38);  // bright green at lip
-  let faceMid  = vec3<f32>(0.03, 0.38, 0.58);  // teal
-  let faceBot  = vec3<f32>(0.01, 0.18, 0.36);  // deep blue
-  let faceCol  = mix(faceTop, mix(faceMid, faceBot, smoothstep(0.25, 0.80, v)), smoothstep(0.05, 0.30, v));
-
-  // ---- Interior color ----
-  let intCol = mix(vec3<f32>(0.02, 0.12, 0.30), vec3<f32>(0.04, 0.22, 0.42), v);
-
-  // Blend face → interior
-  var bodyCol = mix(faceCol, intCol, faceProx);
-
-  // ---- Shimmer on face ----
-  let shimmer = pow(max(0.0, sin(uv.x * 28.0 - t * 7.0 + v * 6.0 + 0.5)), 10.0) * 0.18
-              * (1.0 - faceProx) * smoothstep(0.08, 0.5, v);
-  bodyCol += shimmer;
-
-  // ---- Foam at top ----
-  let foamZone = smoothstep(0.20, 0.0, v);
-  let fn1 = fract(sin(uv.x * 43.7 + t * 3.1) * 2357.8 + sin(v * 31.2 + t * 1.9) * 5171.3);
-  let fn2 = fract(sin(uv.x * 97.1 + t * 2.4 + 0.7) * 3211.5 + sin(v * 71.5 - t * 2.1) * 8931.2);
-  let foamNoise = (fn1 + fn2) * 0.5;
-  let foamAlpha = foamZone * step(0.38, foamNoise);
-  let foamCol   = vec3<f32>(0.94, 0.97, 1.00);
-
-  // Foam spray streaks slightly past wave face
-  let streakDist = faceDist + 0.02;
-  let streak = foamZone * 0.35 * step(0.62, fn2) * smoothstep(0.0, 0.04, streakDist) * smoothstep(0.07, 0.03, streakDist);
-  if (uv.x > rightEdge + 0.005) {
-    return vec4<f32>(foamCol, streak);
+  // Spray fringe below bottom edge
+  if (uv.y > bottomEdge) {
+    let ft = (uv.y - bottomEdge) / FRINGE;
+    let sn = fract(sin(uv.x * 58.3 + uv.y * 73.1 + t * 3.8) * 5193.7);
+    let fadeEdge = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
+    let sprayA = (1.0 - ft) * step(0.48, sn) * 0.65 * fadeEdge;
+    return vec4<f32>(0.88, 0.94, 1.0, sprayA);
   }
 
-  bodyCol = mix(bodyCol, foamCol, foamAlpha);
+  // Depth within wave: 0=top, 1=bottom edge
+  let depth = clamp(uv.y / max(bottomEdge, 0.01), 0.0, 1.0);
 
-  // ---- Trough darkening ----
-  let troughDark = smoothstep(0.72, 1.0, v) * 0.55;
-  bodyCol *= (1.0 - troughDark);
+  // ---- Barrel opening ellipse at top center ----
+  let bCenter = vec2<f32>(0.5, 0.058);
+  let bRadii  = vec2<f32>(0.30, 0.068);
+  let bCoord  = (uv - bCenter) / bRadii;
+  let bDist   = dot(bCoord, bCoord);
+  let inBarrel   = bDist < 1.0;
+  let barrelGlow = smoothstep(2.0, 0.8, bDist) * f32(!inBarrel);
 
-  // ---- Turbulence in back of wave (white water) ----
-  let backWater = smoothstep(0.06, 0.0, uv.x + globals.waveXOffset);
-  let ww = fract(sin(uv.x * 53.1 - t * 2.8) * 7412.3 + sin(v * 47.3 + t * 1.6) * 3891.5);
-  let wwAlpha = backWater * step(0.35, ww) * 0.65;
-  bodyCol = mix(bodyCol, vec3<f32>(0.88, 0.92, 0.97), wwAlpha);
+  // Sky visible through barrel
+  let skyDeep   = vec3<f32>(0.08, 0.22, 0.58);
+  let skyBright = vec3<f32>(0.52, 0.78, 0.98);
+  var barrSky   = mix(skyDeep, skyBright, smoothstep(0.10, 0.0, uv.y));
+  let sunD = length(uv - vec2<f32>(0.53, 0.038));
+  barrSky += vec3<f32>(1.0, 0.95, 0.76) * smoothstep(0.040, 0.006, sunD);
+
+  // ---- Wave body: dark ceiling ----
+  let ceilDeep = vec3<f32>(0.01, 0.06, 0.18);
+  let ceilMid  = vec3<f32>(0.03, 0.16, 0.34);
+  var waveCol  = mix(ceilDeep, ceilMid, depth);
+
+  // Glass side walls (green-teal, brightens toward edges and lower half)
+  let sideX    = abs(uv.x - 0.5) * 2.0; // 0=center 1=edges
+  let sideWall = smoothstep(0.48, 0.88, sideX) * smoothstep(0.18, 0.65, depth);
+  let faceGreen = vec3<f32>(0.04, 0.52, 0.30);
+  let faceTeal  = vec3<f32>(0.05, 0.38, 0.52);
+  waveCol = mix(waveCol, mix(faceGreen, faceTeal, depth), sideWall * 0.72);
+
+  // Shimmer lines on ceiling
+  let shimmer = pow(max(0.0, sin(uv.x * 26.0 + t * 6.5 + depth * 5.5 + uv.y * 9.0)), 10.0)
+              * 0.17 * (1.0 - depth * 0.55);
+  waveCol += shimmer;
+
+  // Foam streaks rushing downward (toward camera)
+  let fv = fract(uv.y * 2.5 - scroll * 0.005 - t * 0.30);
+  let fh = fract(uv.x * 11.0 + sin(uv.x * 7.5 + t * 0.6) * 0.14);
+  let foamNoise = fract(sin(fh * 47.3 + fv * 31.2) * 5291.4);
+  let foamVis   = step(0.72, foamNoise)
+                * smoothstep(0.14, 0.62, depth)
+                * (1.0 - sideWall * 0.45)
+                * 0.50;
+  waveCol = mix(waveCol, vec3<f32>(0.88, 0.93, 1.0), foamVis);
+
+  // Foam churning along bottom edge
+  let edgeFoam = smoothstep(0.10, 0.0, bottomEdge - uv.y)
+               * step(0.52, fract(uv.x * 9.2 + t * 1.6)) * 0.55;
+  waveCol = mix(waveCol, vec3<f32>(0.92, 0.97, 1.0), edgeFoam);
+
+  // Barrel glow halo around opening
+  waveCol += barrelGlow * vec3<f32>(0.15, 0.38, 0.60) * 0.45;
 
   // ---- Alpha ----
-  // Slightly transparent on face for glass look, opaque interior
-  var alpha = mix(0.80, 0.97, faceProx);
-  // Fade top edge smoothly (the very tip)
-  alpha *= smoothstep(0.0, 0.025, v);
-  // Fade bottom of wave
-  alpha *= smoothstep(1.0, 0.88, v);
+  var alpha = 0.96;
+  alpha *= smoothstep(0.0, 0.020, uv.y);
+  alpha *= smoothstep(0.0, 0.035, uv.x) * smoothstep(1.0, 0.965, uv.x);
+  // Slight transparency at bottom glass edge
+  alpha *= smoothstep(bottomEdge, bottomEdge - 0.05, uv.y) * 0.20 + 0.80;
 
-  return vec4<f32>(bodyCol, alpha);
+  // Barrel opening: nearly transparent so background sky shows through
+  if (inBarrel) {
+    return vec4<f32>(barrSky, alpha * 0.10);
+  }
+
+  return vec4<f32>(waveCol, alpha);
 }
