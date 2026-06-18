@@ -13,7 +13,8 @@ interface TouchZone {
   x: number; y: number; w: number; h: number;
 }
 
-const TILT_SENSITIVITY = 18; // degrees of gamma for full lane range
+const TILT_DEAD_ZONE = 4;  // degrees of tilt with no movement (prevents drift)
+const TILT_RANGE     = 26; // degrees beyond the dead zone for full lane deflection
 
 export class InputManager {
   private keys = new Set<string>();
@@ -24,6 +25,7 @@ export class InputManager {
 
   // Tilt state
   private tiltGamma    = 0;
+  private tiltNeutral: number | null = null; // calibrated resting angle
   private _isTiltActive = false;
   private tiltPump     = 0; // 0=none, 1=down-frame, 2=up-frame
 
@@ -81,11 +83,17 @@ export class InputManager {
   private startTiltListening(): void {
     window.addEventListener('deviceorientation', (e: DeviceOrientationEvent) => {
       if (e.gamma !== null) {
+        // Calibrate the resting angle on the first reading so "holding the
+        // phone naturally" maps to centre, not whatever raw angle gamma reports.
+        if (this.tiltNeutral === null) this.tiltNeutral = e.gamma;
         this.tiltGamma = e.gamma;
         this._isTiltActive = true;
       }
     });
   }
+
+  /** Re-capture the resting tilt angle on the next reading (call on each run). */
+  recalibrateTilt(): void { this.tiltNeutral = null; }
 
   setTouchZones(zones: TouchZone[]): void { this.touchZones = zones; }
 
@@ -154,9 +162,14 @@ export class InputManager {
 
     this.state.action     = keyAct || this.touchJustTapped.has('action');
     this.state.justAction = keyAct || this.touchJustTapped.has('action');
-    this.state.tiltLane   = this._isTiltActive
-      ? Math.max(-1, Math.min(1, this.tiltGamma / TILT_SENSITIVITY))
-      : null;
+
+    if (this._isTiltActive && this.tiltNeutral !== null) {
+      const raw = this.tiltGamma - this.tiltNeutral;
+      const mag = Math.max(0, Math.abs(raw) - TILT_DEAD_ZONE);
+      this.state.tiltLane = Math.sign(raw) * Math.min(mag / TILT_RANGE, 1);
+    } else {
+      this.state.tiltLane = null;
+    }
 
     this.justPressed.clear();
     this.touchJustTapped.clear();

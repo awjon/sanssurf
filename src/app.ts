@@ -77,8 +77,10 @@ export class App {
 
       game.tick(timestamp, (frame: RenderFrame) => {
         const g = frame.globals;
-        const W = gpuCanvas.width;
-        const H = gpuCanvas.height;
+        // Sprite positions from the game are in CSS pixels; globals must match
+        // so the sprite shader maps them across the full normalized screen.
+        const W = frame.screenWidth;
+        const H = frame.screenHeight;
 
         const globalsData = buildGlobals(
           g.time, g.deltaTime, W, H,

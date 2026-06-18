@@ -43,7 +43,7 @@ export function updatePhysics(s: SurferState, input: InputState, dt: number): vo
 
   // Lateral movement — tilt drives position directly; buttons drive rate
   if (input.tiltLane !== null) {
-    s.lanePosition += (input.tiltLane - s.lanePosition) * Math.min(9 * dt, 1);
+    s.lanePosition += (input.tiltLane - s.lanePosition) * Math.min(7 * dt, 1);
   } else {
     if (input.left)  s.lanePosition -= LATERAL_SPEED * dt;
     if (input.right) s.lanePosition += LATERAL_SPEED * dt;

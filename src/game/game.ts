@@ -106,6 +106,7 @@ export class Game {
         if (inp.justAction) {
           // Tap is the required user gesture for iOS DeviceOrientation permission
           void this.input.requestTiltPermission();
+          this.input.recalibrateTilt();
           this.transition(GameState.WAVE_ENTER);
         }
         break;
@@ -259,11 +260,16 @@ export class Game {
     this.cameraScroll = 0;
     this.waveXOffset  = -0.65;
     this.hitLabel     = '';
+    this.input.recalibrateTilt();
     this.startScreen.pickNewWave();
     this.transition(GameState.WAVE_ENTER);
   }
 
   private drawUI(t: number, W: number, H: number): void {
+    // Backing store is devicePixelRatio-scaled; draw in CSS-pixel space so the
+    // UI fills the whole canvas rather than the top-left 1/dpr quadrant.
+    const dpr = this.canvas.width / Math.max(W, 1);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.clearRect(0, 0, W, H);
 
     // Landscape warning on mobile (portrait is the intended orientation)
