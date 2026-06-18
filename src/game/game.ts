@@ -62,7 +62,7 @@ export class Game {
   private gameOverScreen = new GameOverScreen();
 
   private cameraScroll = 0;
-  private waveXOffset  = -0.70;
+  private waveXOffset  = -0.65;
   private shakeX       = 0;
   private shakeTimer   = 0;
   private hitLabel     = '';
@@ -103,12 +103,16 @@ export class Game {
 
     switch (this.state) {
       case GameState.START:
-        if (inp.justAction) this.transition(GameState.WAVE_ENTER);
+        if (inp.justAction) {
+          // Tap is the required user gesture for iOS DeviceOrientation permission
+          void this.input.requestTiltPermission();
+          this.transition(GameState.WAVE_ENTER);
+        }
         break;
 
       case GameState.WAVE_ENTER: {
         const progress = Math.min(this.stateTimer / WAVE_ENTER_DURATION, 1);
-        this.waveXOffset = lerp(-0.70, 0, easeOutCubic(progress));
+        this.waveXOffset = lerp(-0.65, 0, easeOutCubic(progress));
         if (this.stateTimer >= WAVE_ENTER_DURATION) this.transition(GameState.SURFING);
         break;
       }
@@ -155,7 +159,7 @@ export class Game {
           });
         }
 
-        if (this.input.isTouchPrimary) {
+        if (this.input.isTouchPrimary && !this.input.isTiltActive) {
           this.touchZones = this.hud.defaultTouchZones(W, H);
           this.input.setTouchZones([
             { id: 'left',  ...this.touchZones.left  },
@@ -163,6 +167,9 @@ export class Game {
             { id: 'up',    ...this.touchZones.up    },
             { id: 'down',  ...this.touchZones.down  },
           ]);
+        } else {
+          this.touchZones = null;
+          this.input.setTouchZones([]);
         }
         break;
       }
@@ -250,7 +257,7 @@ export class Game {
     this.obstacles.reset();
     this.scoring.reset();
     this.cameraScroll = 0;
-    this.waveXOffset  = -0.70;
+    this.waveXOffset  = -0.65;
     this.hitLabel     = '';
     this.startScreen.pickNewWave();
     this.transition(GameState.WAVE_ENTER);
@@ -259,12 +266,12 @@ export class Game {
   private drawUI(t: number, W: number, H: number): void {
     this.ctx.clearRect(0, 0, W, H);
 
-    // Portrait warning
-    if (W < H && W < 600) {
+    // Landscape warning on mobile (portrait is the intended orientation)
+    if (this.input.isTouchPrimary && W > H) {
       this.ctx.fillStyle = 'rgba(0,10,30,0.95)';
       this.ctx.fillRect(0, 0, W, H);
       this.ctx.fillStyle = '#FFD700';
-      this.ctx.font = `bold ${Math.min(W * 0.1, 32)}px 'Courier New', monospace`;
+      this.ctx.font = `bold ${Math.min(H * 0.08, 32)}px 'Courier New', monospace`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText('↻ ROTATE TO PLAY', W / 2, H / 2);
@@ -282,7 +289,7 @@ export class Game {
 
       case GameState.SURFING:
         this.hud.drawHUD(this.ctx, W, H, this.scoring.getDistance(), this.surfer.speed, this.surfer.momentum, this.surfer);
-        if (this.input.isTouchPrimary && this.touchZones) {
+        if (this.input.isTouchPrimary && !this.input.isTiltActive && this.touchZones) {
           this.hud.drawTouchControls(this.ctx, W, H, this.touchZones);
         }
         break;

@@ -45,7 +45,9 @@ export class StartScreen {
     ctx.font      = `${baseFont * 0.18}px 'Courier New', monospace`;
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     if (isTouchDevice) {
-      ctx.fillText('← → move  ↑ slow  ↓ fast  pump: ↓↑↓↑', cx, h * 0.78);
+      ctx.fillText('TILT TO STEER  •  TAP TO PUMP', cx, h * 0.76);
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.fillText('↓ FAST  •  ↑ SLOW', cx, h * 0.82);
     } else {
       ctx.fillText('← → move on wave   ↑ stand (slow)   ↓ crouch (fast)   pump: ↓↑↓↑', cx, h * 0.78);
     }

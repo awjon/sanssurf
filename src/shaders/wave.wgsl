@@ -1,5 +1,5 @@
 fn waveBottomEdge(x: f32, t: f32) -> f32 {
-  return 0.60
+  return 0.55
     + 0.055 * sin(x * 3.8 + t * 1.2)
     + 0.022 * sin(x * 9.1 + t * 2.1 + 1.3)
     + 0.008 * sin(x * 18.5 + t * 3.7)

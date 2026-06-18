@@ -41,9 +41,13 @@ export function updatePhysics(s: SurferState, input: InputState, dt: number): vo
   const stanceMult = s.stance === 'crouch' ? 1.35 : 0.72;
   s.speed = clamp(BASE_SPEED * stanceMult + s.momentum, MIN_SPEED, MAX_SPEED);
 
-  // Lateral movement
-  if (input.left)  s.lanePosition -= LATERAL_SPEED * dt;
-  if (input.right) s.lanePosition += LATERAL_SPEED * dt;
+  // Lateral movement — tilt drives position directly; buttons drive rate
+  if (input.tiltLane !== null) {
+    s.lanePosition += (input.tiltLane - s.lanePosition) * Math.min(9 * dt, 1);
+  } else {
+    if (input.left)  s.lanePosition -= LATERAL_SPEED * dt;
+    if (input.right) s.lanePosition += LATERAL_SPEED * dt;
+  }
 
   s.lanePosition = clamp(s.lanePosition, -1.0, 1.0);
 
