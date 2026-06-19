@@ -62,7 +62,7 @@ export class Game {
   private gameOverScreen = new GameOverScreen();
 
   private cameraScroll = 0;
-  private waveXOffset  = -0.65;
+  private waveXOffset  = +0.45; // wave off-screen at bottom; cinematic slides it up
   private shakeX       = 0;
   private shakeTimer   = 0;
   private hitLabel     = '';
@@ -113,7 +113,7 @@ export class Game {
 
       case GameState.WAVE_ENTER: {
         const progress = Math.min(this.stateTimer / WAVE_ENTER_DURATION, 1);
-        this.waveXOffset = lerp(-0.65, 0, easeOutCubic(progress));
+        this.waveXOffset = lerp(+0.45, 0, easeOutCubic(progress));
         if (this.stateTimer >= WAVE_ENTER_DURATION) this.transition(GameState.SURFING);
         break;
       }
@@ -344,8 +344,8 @@ export class Game {
     const sh = H * 0.12;
     const sw = sh * 0.55;
 
-    const sx = surferX + this.stateTimer * W * 0.05;
-    const sy = surferY + this.stateTimer * H * 0.08;
+    const sx = surferX + this.stateTimer * W * 0.06;
+    const sy = surferY - this.stateTimer * H * 0.14; // tumble upward (into wave lip)
 
     this.ctx.save();
     this.ctx.translate(sx, sy);

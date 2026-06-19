@@ -1,9 +1,10 @@
-fn waveBottomEdge(x: f32, t: f32) -> f32 {
-  return 0.55
-    + 0.055 * sin(x * 3.8 + t * 1.2)
-    + 0.022 * sin(x * 9.1 + t * 2.1 + 1.3)
-    + 0.008 * sin(x * 18.5 + t * 3.7)
-    + globals.waveXOffset;
+fn waveTopEdge(x: f32, t: f32) -> f32 {
+  // Center of wave crests slightly higher (barrel peak)
+  let arch = -0.048 * (1.0 - (x * 2.0 - 1.0) * (x * 2.0 - 1.0));
+  let w1   = 0.038 * sin(x * 3.2 + t * 1.4);
+  let w2   = 0.016 * sin(x * 8.1 + t * 2.5 + 1.2);
+  let w3   = 0.007 * sin(x * 17.0 + t * 3.9);
+  return 0.62 + arch + w1 + w2 + w3 + globals.waveXOffset;
 }
 
 @fragment
@@ -12,87 +13,62 @@ fn fs_wave(in: VertexOutput) -> @location(0) vec4<f32> {
   let t     = globals.time;
   let scroll = globals.cameraScroll;
 
-  let bottomEdge = waveBottomEdge(uv.x, t);
-  let FRINGE = 0.045;
+  let topEdge = waveTopEdge(uv.x, t);
+  let FRINGE = 0.032;
 
-  // Nothing below fringe
-  if (uv.y > bottomEdge + FRINGE) {
+  // Nothing above the spray fringe
+  if (uv.y < topEdge - FRINGE) {
     return vec4<f32>(0.0);
   }
 
-  // Spray fringe below bottom edge
-  if (uv.y > bottomEdge) {
-    let ft = (uv.y - bottomEdge) / FRINGE;
+  // Spray / foam fringe just above crest
+  if (uv.y < topEdge) {
+    let ft = (topEdge - uv.y) / FRINGE;
     let sn = fract(sin(uv.x * 58.3 + uv.y * 73.1 + t * 3.8) * 5193.7);
-    let fadeEdge = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
-    let sprayA = (1.0 - ft) * step(0.48, sn) * 0.65 * fadeEdge;
-    return vec4<f32>(0.88, 0.94, 1.0, sprayA);
+    let fade = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
+    let sprayA = (1.0 - ft) * step(0.44, sn) * 0.72 * fade;
+    return vec4<f32>(0.94, 0.97, 1.0, sprayA);
   }
 
-  // Depth within wave: 0=top, 1=bottom edge
-  let depth = clamp(uv.y / max(bottomEdge, 0.01), 0.0, 1.0);
+  // Within wave body: depth 0 = crest, 1 = bottom of screen
+  let depth = clamp((uv.y - topEdge) / max(1.0 - topEdge, 0.01), 0.0, 1.0);
 
-  // ---- Barrel opening ellipse at top center ----
-  let bCenter = vec2<f32>(0.5, 0.058);
-  let bRadii  = vec2<f32>(0.30, 0.068);
-  let bCoord  = (uv - bCenter) / bRadii;
-  let bDist   = dot(bCoord, bCoord);
-  let inBarrel   = bDist < 1.0;
-  let barrelGlow = smoothstep(2.0, 0.8, bDist) * f32(!inBarrel);
+  // ---- Wave face color: bright green lip → teal → deep blue ----
+  let faceTop = vec3<f32>(0.06, 0.68, 0.42);
+  let faceMid = vec3<f32>(0.03, 0.44, 0.60);
+  let faceBot = vec3<f32>(0.01, 0.14, 0.36);
+  var col = mix(faceTop, faceMid, smoothstep(0.0, 0.35, depth));
+  col = mix(col, faceBot, smoothstep(0.30, 0.90, depth));
 
-  // Sky visible through barrel
-  let skyDeep   = vec3<f32>(0.08, 0.22, 0.58);
-  let skyBright = vec3<f32>(0.52, 0.78, 0.98);
-  var barrSky   = mix(skyDeep, skyBright, smoothstep(0.10, 0.0, uv.y));
-  let sunD = length(uv - vec2<f32>(0.53, 0.038));
-  barrSky += vec3<f32>(1.0, 0.95, 0.76) * smoothstep(0.040, 0.006, sunD);
+  // Glassy barrel hollow at center-top (lit from inside)
+  let cx = abs(uv.x - 0.5) * 2.0; // 0=center, 1=edges
+  let barrelGlow = smoothstep(0.65, 0.0, cx) * smoothstep(0.22, 0.0, depth) * 0.48;
+  col = mix(col, vec3<f32>(0.52, 0.88, 0.72), barrelGlow);
 
-  // ---- Wave body: dark ceiling ----
-  let ceilDeep = vec3<f32>(0.01, 0.06, 0.18);
-  let ceilMid  = vec3<f32>(0.03, 0.16, 0.34);
-  var waveCol  = mix(ceilDeep, ceilMid, depth);
+  // White foam crest at lip
+  let crestFoam = smoothstep(0.16, 0.0, depth);
+  col = mix(col, vec3<f32>(0.95, 0.98, 1.0), crestFoam);
 
-  // Glass side walls (green-teal, brightens toward edges and lower half)
-  let sideX    = abs(uv.x - 0.5) * 2.0; // 0=center 1=edges
-  let sideWall = smoothstep(0.48, 0.88, sideX) * smoothstep(0.18, 0.65, depth);
-  let faceGreen = vec3<f32>(0.04, 0.52, 0.30);
-  let faceTeal  = vec3<f32>(0.05, 0.38, 0.52);
-  waveCol = mix(waveCol, mix(faceGreen, faceTeal, depth), sideWall * 0.72);
+  // Shimmer on face
+  let shimmer = pow(max(0.0, sin(uv.x * 26.0 - t * 7.0 + depth * 5.0)), 10.0)
+              * 0.17 * smoothstep(0.55, 0.0, depth);
+  col += shimmer;
 
-  // Shimmer lines on ceiling
-  let shimmer = pow(max(0.0, sin(uv.x * 26.0 + t * 6.5 + depth * 5.5 + uv.y * 9.0)), 10.0)
-              * 0.17 * (1.0 - depth * 0.55);
-  waveCol += shimmer;
-
-  // Foam streaks rushing downward (toward camera)
-  let fv = fract(uv.y * 2.5 - scroll * 0.005 - t * 0.30);
-  let fh = fract(uv.x * 11.0 + sin(uv.x * 7.5 + t * 0.6) * 0.14);
+  // Rushing foam streaks (appear to flow up the face toward the lip)
+  let fv = fract((1.0 - uv.y) * 2.8 - t * 0.30 + scroll * 0.004);
+  let fh = fract(uv.x * 12.0 + sin(uv.x * 7.5 + t * 0.7) * 0.14);
   let foamNoise = fract(sin(fh * 47.3 + fv * 31.2) * 5291.4);
-  let foamVis   = step(0.72, foamNoise)
-                * smoothstep(0.14, 0.62, depth)
-                * (1.0 - sideWall * 0.45)
-                * 0.50;
-  waveCol = mix(waveCol, vec3<f32>(0.88, 0.93, 1.0), foamVis);
+  let foamVis = step(0.72, foamNoise) * smoothstep(0.06, 0.65, depth) * 0.44;
+  col = mix(col, vec3<f32>(0.90, 0.95, 1.0), foamVis);
 
-  // Foam churning along bottom edge
-  let edgeFoam = smoothstep(0.10, 0.0, bottomEdge - uv.y)
-               * step(0.52, fract(uv.x * 9.2 + t * 1.6)) * 0.55;
-  waveCol = mix(waveCol, vec3<f32>(0.92, 0.97, 1.0), edgeFoam);
-
-  // Barrel glow halo around opening
-  waveCol += barrelGlow * vec3<f32>(0.15, 0.38, 0.60) * 0.45;
+  // Trough darkens toward base
+  col *= 1.0 - smoothstep(0.70, 1.0, depth) * 0.55;
 
   // ---- Alpha ----
-  var alpha = 0.96;
-  alpha *= smoothstep(0.0, 0.020, uv.y);
-  alpha *= smoothstep(0.0, 0.035, uv.x) * smoothstep(1.0, 0.965, uv.x);
-  // Slight transparency at bottom glass edge
-  alpha *= smoothstep(bottomEdge, bottomEdge - 0.05, uv.y) * 0.20 + 0.80;
+  var alpha = 0.97;
+  alpha *= smoothstep(topEdge - 0.008, topEdge + 0.020, uv.y); // crisp top edge
+  alpha *= smoothstep(1.0, 0.95, uv.y);                         // fade at bottom
+  alpha *= smoothstep(0.0, 0.025, uv.x) * smoothstep(1.0, 0.975, uv.x); // sides
 
-  // Barrel opening: nearly transparent so background sky shows through
-  if (inBarrel) {
-    return vec4<f32>(barrSky, alpha * 0.10);
-  }
-
-  return vec4<f32>(waveCol, alpha);
+  return vec4<f32>(col, alpha);
 }

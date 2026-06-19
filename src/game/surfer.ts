@@ -31,7 +31,7 @@ export function createSurfer(): SurferState {
 // Screen-space constants for perspective view
 export const LANE_LEFT_RATIO  = 0.15; // screen X fraction when lanePosition = -1
 export const LANE_RIGHT_RATIO = 0.85; // screen X fraction when lanePosition = +1
-export const SURFER_Y_RATIO   = 0.82; // fixed screen Y fraction
+export const SURFER_Y_RATIO   = 0.63; // sits at the wave crest in chase-cam view
 
 /** Map lane position [-1..+1] to screen pixel X */
 export function laneToScreenX(lane: number, W: number): number {

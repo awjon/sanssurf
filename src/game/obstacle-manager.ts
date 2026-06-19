@@ -17,12 +17,17 @@ export interface Obstacle {
   label: string;
 }
 
-const POOL_SIZE    = 24;
-const BASE_INTERVAL = 2.8; // seconds between spawns at difficulty=1
+const POOL_SIZE      = 24;
+const BASE_INTERVAL  = 2.8; // seconds between spawns at difficulty=1
 const MAX_DIFFICULTY = 3.0;
+const VP_Y_RATIO     = 0.28; // horizon / vanishing point Y fraction
 
 function perspScale(y: number, H: number): number {
-  return 0.08 + 0.92 * Math.max(0, Math.min(y / (H * SURFER_Y_RATIO), 1));
+  // Scale from near-zero at the horizon VP to 1.0 at the surfer
+  const vpY     = H * VP_Y_RATIO;
+  const surferY = H * SURFER_Y_RATIO;
+  const t = (y - vpY) / (surferY - vpY);
+  return 0.06 + 0.94 * Math.max(0, Math.min(t, 1));
 }
 
 export class ObstacleManager {
@@ -61,8 +66,8 @@ export class ObstacleManager {
       this.spawn(W, H);
     }
 
-    // Base approach speed: scales with screen height and surfer speed
-    const baseSpeed = surferSpeed * H * 0.035;
+    // Approach speed: obstacle travels from VP (H*0.28) to surfer (H*0.63) in ~2s
+    const baseSpeed = surferSpeed * H * 0.022;
 
     for (const obs of this.pool) {
       if (!obs.active) continue;
@@ -79,7 +84,7 @@ export class ObstacleManager {
       // Subtle lateral sway (replaces old Y bob)
       obs.screenX   += Math.sin(obs.bobPhase) * obs.drawWidth * 0.08;
 
-      if (obs.y > H * 1.15) obs.active = false;
+      if (obs.y > H * 0.82) obs.active = false; // deactivate well past surfer (0.63)
     }
   }
 
@@ -96,7 +101,7 @@ export class ObstacleManager {
 
     slot.kind       = kind;
     slot.worldX     = randomRange(W * 0.15, W * 0.85);
-    slot.y          = -baseH;
+    slot.y          = H * VP_Y_RATIO; // spawn at horizon, appears tiny and grows
     slot.baseWidth  = baseW;
     slot.baseHeight = baseH;
     const ps0       = perspScale(slot.y, H);
