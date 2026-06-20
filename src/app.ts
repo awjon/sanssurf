@@ -64,6 +64,11 @@ export class App {
     const waveRenderer = new WaveRenderer(device, format, bgRenderer.getGlobalsBuffer());
     waveRenderer.init();
 
+    // Load background photo — falls back to procedural shader if missing
+    const bgTex = await loadTextureWithFallback(
+      device, '/sprites/background.png', 'background', [4, 18, 40, 255]);
+    bgRenderer.setPhotoBackground(bgTex);
+
     const textures      = await buildTextureMap(device);
     const spriteRenderer = new SpriteRenderer();
     spriteRenderer.init(device, format, bgRenderer.getGlobalsBuffer(), textures);

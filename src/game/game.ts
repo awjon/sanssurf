@@ -61,11 +61,12 @@ export class Game {
   private hud            = new HUD();
   private gameOverScreen = new GameOverScreen();
 
-  private cameraScroll = 0;
-  private waveXOffset  = +0.45; // wave off-screen at bottom; cinematic slides it up
-  private shakeX       = 0;
-  private shakeTimer   = 0;
-  private hitLabel     = '';
+  private cameraScroll     = 0;
+  private waveXOffset      = +0.45; // wave off-screen at bottom; cinematic slides it up
+  private shakeX           = 0;
+  private shakeTimer       = 0;
+  private hitLabel         = '';
+  private surferFacingLeft = false;
 
   private touchZones: TouchZoneLayout | null = null;
   private letterScrollTimer = 0;
@@ -141,12 +142,20 @@ export class Game {
 
         this.obstacles.update(dt, this.surfer.speed, W, H);
 
+        // Track surfer facing direction from movement velocity
+        if (inp.left || (inp.tiltLane !== null && inp.tiltLane < -0.05)) {
+          this.surferFacingLeft = true;
+        } else if (inp.right || (inp.tiltLane !== null && inp.tiltLane > 0.05)) {
+          this.surferFacingLeft = false;
+        }
+
         // Surfer sprite
         spriteCalls.push({
           textureKey: this.surfer.stance === 'crouch' ? 'surfer-crouch' : 'surfer-stand',
           x: surferX, y: surferY,
           width: surferW, height: surferH,
           opacity: 1.0,
+          flipX: this.surferFacingLeft,
         });
 
         // Obstacle sprites
@@ -254,12 +263,13 @@ export class Game {
   }
 
   private restart(): void {
-    this.surfer       = createSurfer();
+    this.surfer           = createSurfer();
     this.obstacles.reset();
     this.scoring.reset();
-    this.cameraScroll = 0;
-    this.waveXOffset  = -0.65;
-    this.hitLabel     = '';
+    this.cameraScroll     = 0;
+    this.waveXOffset      = +0.45;
+    this.hitLabel         = '';
+    this.surferFacingLeft = false;
     this.input.recalibrateTilt();
     this.startScreen.pickNewWave();
     this.transition(GameState.WAVE_ENTER);
