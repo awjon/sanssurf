@@ -30,10 +30,12 @@ fn vs_sprite(
     vec2<f32>(-0.5, -0.5), vec2<f32>(0.5, -0.5), vec2<f32>(-0.5, 0.5),
     vec2<f32>(-0.5,  0.5), vec2<f32>(0.5, -0.5), vec2<f32>(0.5,  0.5),
   );
-  // UV: y=0 at top image, y=1 at bottom image (standard)
+  // UV must match screen orientation: the top-of-screen corner (lp.y = -0.5,
+  // smaller pixel Y) samples the top of the texture (uv.y = 0), otherwise the
+  // sprite renders upside down.
   var uvCoords = array<vec2<f32>, 6>(
-    vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 0.0),
-    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(1.0, 0.0),
+    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0),
+    vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0),
   );
 
   let inst = instances[ii];
